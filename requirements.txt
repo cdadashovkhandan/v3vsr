@@ -1,0 +1,20 @@
+-f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+chex==0.1.90
+ConfigArgParse==1.7.1
+flax==0.10.6
+jax[cuda12]==0.5.3
+jaxtyping==0.3.2
+numpy==1.26.4
+optax==0.2.5
+scipy==1.16.1
+tqdm==4.67.1
+Pillow==11.3.0
+wandb==0.21.1
+opencv-python-headless==4.11.0.86
+jmp==0.0.4
+natsort==8.4.0
+# cpu-only for data loading
+torch==2.8.0
+torchvision==0.23.0
