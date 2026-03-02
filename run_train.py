@@ -170,9 +170,11 @@ def train(train_loader, val_loader, state, args, i_start):
                 save_checkpoint(args.checkpoint_path, state)
             exit(0)
 
-        if i == args.freeze_flow_first:
-            # replace optimizer by one that doesn't freeze flow params
-            state = state.replace(tx=make_optimizer(state.params, args, freeze_flow=False))
+        if i in (args.freeze_flow_first, args.freeze_encoder_first):
+            # replace optimizer by one that doesn't freeze selected param sets
+            state = state.replace(tx=make_optimizer(
+                state.params, args, freeze_flow=i < args.freeze_flow_first,
+                freeze_encoder=i < args.freeze_encoder_first))
 
         if (i % args.val_every == 0 and i > 0) or i == args.n_iter - 1:
             val_metrics = defaultdict(list)
@@ -238,7 +240,7 @@ def build_models(key, sample_input, args):
     norm = np.pi * args.init_scale * (jax.random.uniform(key3, shape=shape) ** .5)
     theta = 2 * np.pi * jax.random.uniform(key4, shape=shape)
     iota = 2 * np.pi * jax.random.uniform(key5, shape=shape)
-    x, y, z = norm * jnp.cos(theta), norm * jnp.sin(theta), norm * jnp.cos(iota)
+    x, y, z = norm * jnp.cos(theta), norm * jnp.sin(theta), args.t_init_scale * norm * jnp.cos(iota)
     variables['params']['freqs'] = jnp.concatenate([x, y, z], axis=2)
 
     # load pretrained encoder checkpoint
@@ -260,7 +262,7 @@ def build_models(key, sample_input, args):
     return hyper_net, variables, phi
 
 
-def make_optimizer(params, args, freeze_flow: bool):
+def make_optimizer(params, args, freeze_flow=False, freeze_encoder=False):
     schedule = optax.cosine_decay_schedule(init_value=args.lr, decay_steps=args.n_iter)
     optimizer = optax.adamw(schedule)
     if args.accu_steps > 1:
@@ -273,13 +275,17 @@ def make_optimizer(params, args, freeze_flow: bool):
 
     is_flow_model = jax.tree.map_with_path(
         lambda p, _: 'flow_model' in '.'.join(k.key for k in p), params)
+    is_encoder = jax.tree.map_with_path(
+        lambda p, _: ('encoder' in '.'.join(k.key for k in p)) or ('refine' in '.'.join(k.key for k in p)), params)
+
     # we append the freeze tx either way, so that states remain compatible
     optimizer = optax.chain(
         optimizer,
+        optax.masked(optax.scale(args.encoder_grad_multiplier), is_encoder),
         optax.masked(optax.scale(args.flow_grad_multiplier), is_flow_model),
-        optax.transforms.freeze(is_flow_model if freeze_flow else False)
+        optax.transforms.freeze(is_encoder if freeze_encoder else False),
+        optax.transforms.freeze(is_flow_model if freeze_flow else False),
     )
-
     return optimizer
 
 
@@ -335,7 +341,23 @@ def main(args):
     # same key for all processes
     hyper_model, variables, phi = build_models(jax.random.PRNGKey(args.seed), sample_input, args)
 
-    optimizer = make_optimizer(variables['params'], args, freeze_flow=True)
+    # init encoder and convnextblock from checkpoint if requested for post-training
+    if args.pretrained_encoder is not None:
+        with open(args.pretrained_encoder, 'rb') as fh:
+            c = pickle.load(fh)
+            variables = unfreeze(variables)
+            variables['params']['encoder'] = c['model']['params']['encoder']
+            variables['batch_stats']['encoder'] = c['model']['batch_stats']['encoder']
+            variables['params']['refine'] = c['model']['params']['refine']
+            variables['params']['k'] = c['model']['params']['k']
+            variables = freeze(variables)
+
+    optimizer = make_optimizer(
+        variables['params'],
+        args,
+        freeze_encoder=args.freeze_encoder_first != 0,
+        freeze_flow=args.freeze_flow_first != 0,
+    )
 
     state = TrainState.create(
         apply_fn=hyper_model.apply,
@@ -361,8 +383,12 @@ def main(args):
             if 'loss_scale' in checkpoint:
                 state = state.replace(loss_scale=checkpoint['loss_scale'])
             i_start = int(checkpoint['optimizer'][0][1][3][2].count) + 1
-            if i_start > args.freeze_flow_first:
-                state = state.replace(tx=make_optimizer(state.params, args, freeze_flow=False))
+            state = state.replace(tx=make_optimizer(
+                state.params,
+                args,
+                freeze_flow=i_start < args.freeze_flow_first,
+                freeze_encoder=i_start < args.freeze_encoder_first)
+            )
             wandb_id = checkpoint.get('wandb_id', None)
             dprint(f'Resuming from checkpoint {args.checkpoint_path}')
             dprint(f'[i_start={i_start}, wandb_id={wandb_id}]')

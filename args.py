@@ -21,8 +21,12 @@ parser.add_argument('--augment-scale-range', type=float, nargs='+', default=(1.,
 parser.add_argument('--augment-scale-prob', type=float, default=0.5)
 parser.add_argument('--accu-steps', type=int, default=1)
 parser.add_argument('--pretrained-raft', type=str, default=None)
+parser.add_argument('--pretrained-encoder', type=str, default=None)
+parser.add_argument('--freeze-encoder-first', type=int, default=0)
+parser.add_argument('--encoder-grad-multiplier', type=float, default=1.)
 parser.add_argument('--freeze-flow-first', type=int, default=2_200_000)
 parser.add_argument('--flow-grad-multiplier', type=float, default=.1)
+parser.add_argument('--t-init-scale', type=float, default=1.)
 parser.add_argument('--mp-policy', default='params=float32,compute=float16,output=float32')
 parser.add_argument('--every-frame', type=int, nargs='+', default=[8])
 

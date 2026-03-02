@@ -16,7 +16,7 @@ This is the official implementation of the paper
 
 ## News
 2026-01-26: Paper is accepted to ICLR 2026. 🎉 <br>
-2025-09-30: Paper is now on [arXiv](https://arxiv.org/abs/2509.26325)).<br>
+2025-09-30: Paper is now on [arXiv](https://arxiv.org/abs/2509.26325).<br>
 
 ## Setup
 
@@ -32,9 +32,9 @@ cd models/rvrt_jax/deform_attn && ./build.sh && cd -
 
 ## Evaluate pre-trained models
 
-Download pre-trained V3 checkpoint from [Google Drive](https://drive.google.com/file/d/1V7LtyhHZdnw2TOpJGl3GwKY8ksgL0ldb/view?usp=share_link) and place them in the `checkpoints/` folder.
+Download pre-trained V3 checkpoint from [Google Drive](https://drive.google.com/file/d/15nw5NhEIf7VvetEtQI1cnrLNWPi_9FGj/view?usp=sharing) and place them in the `checkpoints/` folder.
 
-An example command for evaluating on the Vid4 dataset (x2 temporal upsampling) is:
+An example command for running inference on the Vid4 dataset (x2 temporal upsampling) is:
 ```bash
 python run_inference.py --data-dir data/ --checkpoint-path checkpoints/v3.pkl --eval-sets Vid4 --space-scale 4 --time-scale 2
 ```
@@ -66,12 +66,16 @@ bash run_train.sh
 ```
 Make sure to check `run_train.sh` and `args.py` for the availabe training options.
 
+## Reproducibility
+This branch contains the current reference implementation with the recommended initialization and training settings. Results remain consistent with those reported in the paper. For exact reproduction of the paper results, please use branch `v0.1-paper`.
+
 ## Citation
 ```bibtex
-@article{becker2025continuous,
+@inproceedings{
+  becker2026continuous,
   title={Continuous Space-Time Video Super-Resolution with 3D Fourier Fields},
-  author={Becker, Alexander and Erbach, Julius and Narnhofer, Dominik and Schindler, Konrad},
-  journal={arXiv preprint arXiv:2509.26325},
-  year={2025}
+  author={Alexander Becker and Julius Erbach and Dominik Narnhofer and Konrad Schindler},
+  booktitle={The Fourteenth International Conference on Learning Representations},
+  year={2026}
 }
 ```
