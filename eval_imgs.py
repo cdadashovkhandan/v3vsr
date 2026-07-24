@@ -91,8 +91,8 @@ def main():
             gv = gv / 'sharp'
         print(gv, ov)
 
-        gt_frames = sorted([p for p in gv.iterdir() if p.suffix.lower() == ".png"], key=lambda p: int(p.stem))
-        out_frames = sorted([p for p in ov.iterdir() if p.suffix.lower() == ".png"], key=lambda p: int(p.stem))
+        gt_frames = sorted([p for p in gv.iterdir() if p.suffix.lower() == ".png"], key=lambda p: int(p.stem) if p.stem.isdigit() else int(p.stem.split(".", 1)[1]))
+        out_frames = sorted([p for p in ov.iterdir() if p.suffix.lower() == ".png"], key=lambda p: int(p.stem) if p.stem.isdigit() else int(p.stem.split(".", 1)[1]))
         assert abs(len(gt_frames) - len(out_frames)) <= 8, f"Frame count mismatch: {len(gt_frames)} vs {len(out_frames)}"
         gt_frames = gt_frames[:len(out_frames)]
         assert (len(gt_frames) - 1) % ts == 0
