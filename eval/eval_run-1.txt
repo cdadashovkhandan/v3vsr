@@ -1,0 +1,79 @@
+(V3VSR) [s3591077@omni40 v3]$ python eval_imgs.py /home2/s3591077/scratch/datasets/scisr-img/test/GT/ results/test/GT/x4 --time-scale 2
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/0 results/test/GT/x4/0
+PSNR: 32.706 dB (48 frames, average)
+PSNR: 32.706 dB (48 frames, center)
+SSIM: 0.956 (48 frames, average)
+SSIM: 0.956 (48 frames, center)
+tOF: 0.433
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/1 results/test/GT/x4/1
+PSNR: 33.471 dB (96 frames, average)
+PSNR: 33.471 dB (96 frames, center)
+SSIM: 0.958 (96 frames, average)
+SSIM: 0.958 (96 frames, center)
+tOF: 0.302
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/2 results/test/GT/x4/2
+PSNR: 33.178 dB (144 frames, average)
+PSNR: 33.178 dB (144 frames, center)
+SSIM: 0.957 (144 frames, average)
+SSIM: 0.957 (144 frames, center)
+tOF: 0.358
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/3 results/test/GT/x4/3
+PSNR: 32.841 dB (192 frames, average)
+PSNR: 32.841 dB (192 frames, center)
+SSIM: 0.955 (192 frames, average)
+SSIM: 0.955 (192 frames, center)
+tOF: 0.446
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/4 results/test/GT/x4/4
+PSNR: 32.406 dB (240 frames, average)
+PSNR: 32.406 dB (240 frames, center)
+SSIM: 0.951 (240 frames, average)
+SSIM: 0.951 (240 frames, center)
+tOF: 0.614
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/5 results/test/GT/x4/5
+PSNR: 32.870 dB (288 frames, average)
+PSNR: 32.870 dB (288 frames, center)
+SSIM: 0.953 (288 frames, average)
+SSIM: 0.953 (288 frames, center)
+tOF: 0.616
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/6 results/test/GT/x4/6
+PSNR: 32.750 dB (336 frames, average)
+PSNR: 32.750 dB (336 frames, center)
+SSIM: 0.951 (336 frames, average)
+SSIM: 0.951 (336 frames, center)
+tOF: 0.687
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/7 results/test/GT/x4/7
+PSNR: 32.699 dB (384 frames, average)
+PSNR: 32.699 dB (384 frames, center)
+SSIM: 0.952 (384 frames, average)
+SSIM: 0.952 (384 frames, center)
+tOF: 0.616
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/8 results/test/GT/x4/8
+PSNR: 32.534 dB (432 frames, average)
+PSNR: 32.534 dB (432 frames, center)
+SSIM: 0.949 (432 frames, average)
+SSIM: 0.949 (432 frames, center)
+tOF: 0.710
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/9 results/test/GT/x4/9
+PSNR: 32.514 dB (480 frames, average)
+PSNR: 32.514 dB (480 frames, center)
+SSIM: 0.950 (480 frames, average)
+SSIM: 0.950 (480 frames, center)
+tOF: 0.649
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/10 results/test/GT/x4/10
+PSNR: 32.443 dB (528 frames, average)
+PSNR: 32.443 dB (528 frames, center)
+SSIM: 0.949 (528 frames, average)
+SSIM: 0.949 (528 frames, center)
+tOF: 0.647
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/11 results/test/GT/x4/11
+PSNR: 32.390 dB (576 frames, average)
+PSNR: 32.390 dB (576 frames, center)
+SSIM: 0.949 (576 frames, average)
+SSIM: 0.949 (576 frames, center)
+tOF: 0.639
+/home2/s3591077/scratch/datasets/scisr-img/test/GT/12 results/test/GT/x4/12
+PSNR: 32.373 dB (624 frames, average)
+PSNR: 32.373 dB (624 frames, center)
+SSIM: 0.949 (624 frames, average)
+SSIM: 0.949 (624 frames, center)
+tOF: 0.603
