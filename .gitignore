@@ -132,3 +132,5 @@ dmypy.json
 results/
 runs/
 *.msgpack
+
+*.h5
