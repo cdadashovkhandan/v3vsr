@@ -10,7 +10,7 @@ python -u run_train.py \
     --data-dir /home2/s3591077/scratch/datasets \
     --train-set scisr/train \
     --val-set scisr/test/GT \
-    --val-every 2500 \
+    --val-every 1000 \
     --accu-steps 1 \
     --num-blocks 2 4 2 \
     --embed-dims 90 90 90 \
@@ -19,7 +19,7 @@ python -u run_train.py \
     --freeze-flow-first 2_200_000 \
     --flow-grad-multiplier 0.1 \
     --max-grad-norm 1.0 \
-    --n-iter 5000 \
+    --n-iter 100_000 \
     --num-workers 4 \
     --patch-size 50 \
     --seq-len 8 \

@@ -7,6 +7,7 @@
 #SBATCH --time=24:00:00
 #SBATCH --gpus-per-node=a100:2
 #SBATCH --output=runs/train-%j.log
+#SBATCH --job-name=v3_train
 
 # start environments and load existing modules
 module purge

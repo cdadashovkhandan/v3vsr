@@ -96,7 +96,7 @@ class REDSVideoFolder(Dataset):
 
         every = random.choice(self.every)
         need = (self.seq_len - 1) * every + 1
-        print(f"INDEX {i} NEED AND LEN ITEMS:", need, len(items))
+        # print(f"INDEX {i} NEED AND LEN ITEMS:", need, len(items))
         assert need <= len(items)
         t_start = random.randint(0, len(items) - need)
         items = items[t_start:t_start + need]

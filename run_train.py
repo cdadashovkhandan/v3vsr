@@ -81,8 +81,8 @@ def forward(apply_fn, field_apply_fn, variables, source, target_coords, target_c
     out = apply_phi_batched(phi_params, rel_coords, target_scale, k, variables['params']['freqs'])
     out = out * np.sqrt(VAR).astype(out.dtype) + MEAN.astype(out.dtype)
 
-    if args.tv_weight > 0.:
-        raise NotImplementedError
+    # if args.tv_weight > 0.:
+    #     raise NotImplementedError
 
     return (out, *res[1:]) if isinstance(res, tuple) else out
 
@@ -95,7 +95,7 @@ def train_step(batch, key, state: TrainState):
             state.apply_fn, state.field_apply_fn,
             {'params': params_c, 'batch_stats': state.batch_stats},
             batch_c['source'], batch_c['target_coords'], batch_c['target_coords_z'],
-            batch_c['target_scale'], key, train=True)
+            batch_c['scale'], key, train=True)
         out = out + batch_c['source_nearest']
         out = state.mp_policy.cast_to_output(out)
         metrics = get_metrics(out, batch['target'])
@@ -187,7 +187,7 @@ def train(train_loader, val_loader, state, args, i_start):
                 out = pmap(forward, static_broadcasted_argnums=(0, 1))(
                     state.apply_fn, state.field_apply_fn, variables_c,
                     batch_c['source'], batch_c['target_coords'], batch_c['target_coords_z'],
-                    batch_c['target_scale'], keys
+                    batch_c['scale'], keys
                 )
                 out = out + batch_c['source_nearest']
                 out = state.mp_policy.cast_to_output(out)
