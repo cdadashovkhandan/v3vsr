@@ -24,11 +24,9 @@ python -u run_train.py \
     --patch-size 50 \
     --seq-len 8 \
     --local-batch-size 1 \
-    --tag d7m3 \
+    --tag dists_2 \
     --thera_dim 512 \
     --loss CUSTOM \
-    --w_mse 0.7 \
-    --w_dists 0.3
     
 # # Post-training phase with lower temporal freq. initialization;
 # # omitted default arguments for brevity

@@ -25,5 +25,5 @@ export WANDB_API_KEY="wandb_v1_FlO99cdMChk4vp1xceTJcQHaCgw_qPhUhctk5KOTBQNrSbC6f
 # run 
 # python inference_tile.py -i /scratch/s3591077/mthesis/datasets/volume_static_short -o volume_static_short.mp4 --outputimage_path ./pngdump
 
-python run_inference.py --data-dir /home2/s3591077/scratch/datasets/scisr --checkpoint-path /home2/s3591077/scratch/models/logs/params_latest-v3-pre.pkl --eval-sets test/LQ --space-scale 4 --time-scale 2
+python run_inference.py --data-dir /home2/s3591077/scratch/datasets/scisr --checkpoint-path /home2/s3591077/scratch/models/logs/params_latest-dists_1.pkl --eval-sets test/GT --space-scale 4 --time-scale 2
     

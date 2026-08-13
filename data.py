@@ -91,7 +91,7 @@ class REDSVideoFolder(Dataset):
         return len(self.items)
 
     def __getitem__(self, i):
-        print("Checking index ", i)
+        # print("Checking index ", i)
         items = self.items[i]
 
         every = random.choice(self.every)
@@ -157,9 +157,9 @@ class Adobe240VideoFolder(REDSVideoFolder):
 
         self.items = []
         for p in video_paths:
-            print(f"Reading video {p}")
+            # print(f"Reading video {p}")
             frames = read_video(p)
-            print("Frame count: ", frames)
+            # print("Frame count: ", frames)
             self.items.append(frames)
 
         print(f'Read Adobe dataset with {len(self)} videos.')
@@ -182,8 +182,8 @@ class REDSEvalVideoFolder(Dataset):
                     video.append(path)
             self.items.append(video)
         
-        print("REDS ITEMS:")
-        print(items)
+        # print("REDS ITEMS:")
+        # print(items)
 
     def __len__(self):
         return len(self.items)
@@ -201,8 +201,8 @@ class HFEvalVideoFolder(Dataset):
         video_paths = sorted([n for n in root.iterdir()])
         video_paths = video_paths[shard.rank::shard.world_size]
         self.paths = video_paths
-        print("HF VIDEO PATHS:")
-        print(video_paths)
+        # print("HF VIDEO PATHS:")
+        # print(video_paths)
 
     def __len__(self):
         return len(self.paths)
@@ -256,16 +256,16 @@ class ContinuousWrapper(Dataset):
         augment_scale = random.uniform(*self.augment_scale_range) \
             if random.random() < self.augment_scale_prob else 1
 
-        print("AUGMENT SCALE", augment_scale)
-        print("ALL_FRAMES SIZE CHANGES")
+        # print("AUGMENT SCALE", augment_scale)
+        # print("ALL_FRAMES SIZE CHANGES")
         all_frames = torch.cat([input_frames, target_frames])
-        print("CAT:", all_frames.shape)
+        # print("CAT:", all_frames.shape)
         all_frames = RandomCrop(round(self.patch_size * scale * augment_scale))(all_frames)
-        print("RANDOMCROP:", all_frames.shape)
+        # print("RANDOMCROP:", all_frames.shape)
         all_frames = all_frames.float() / 255.
-        print("By 255:", all_frames.shape)
+        # print("By 255:", all_frames.shape)
         target_size = int(all_frames.shape[-1] / augment_scale)
-        print("TARGET SIZE:", target_size)
+        # print("TARGET SIZE:", target_size)
         if augment_scale != 1:
             all_frames = torch.stack([pil_resize(t, (target_size, target_size)) for t in all_frames])
         all_frames = self.transforms(all_frames)

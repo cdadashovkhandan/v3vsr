@@ -4,10 +4,10 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=60GB
-#SBATCH --time=10:00:00
+#SBATCH --time=20:00:00
 #SBATCH --gpus-per-node=a100:2
-#SBATCH --output=runs/train_d7m3-%j.log
-#SBATCH --job-name=d7m3
+#SBATCH --output=runs/train_dists2-%j.log
+#SBATCH --job-name=v3_dists2
 
 # start environments and load existing modules
 module purge
@@ -26,5 +26,5 @@ export WANDB_API_KEY="wandb_v1_FlO99cdMChk4vp1xceTJcQHaCgw_qPhUhctk5KOTBQNrSbC6f
 # run 
 # python inference_tile.py -i /scratch/s3591077/mthesis/datasets/volume_static_short -o volume_static_short.mp4 --outputimage_path ./pngdump
 
-/home2/s3591077/scratch/models/v3/train_scisr.sh
+/home2/s3591077/scratch/models/v3/train_scisr_dists2.sh
     

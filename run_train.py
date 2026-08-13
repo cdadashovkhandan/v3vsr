@@ -26,6 +26,7 @@ from utils import (MEAN, VAR, add_batch_dims, make_grid, interpolate_grid, seed_
                    split, inf_iter, save_checkpoint, dprint)
 from data import ContinuousWrapper, Adobe240VideoFolder, DataShard
 from train_state import TrainState
+from dists import DISTS
 
 
 received_sigterm = False
@@ -43,15 +44,35 @@ def prepare_batch(batch):
     return batch
 
 
-@jit
-def get_metrics(out, target):
+# @jit
+def get_metrics(out, target, dists_model, dists_variables):
     """
-    Returns: tuple(loss, dict of metrics)
+    Returns: dict of metrics
     """
     mse = (lambda x, y: jnp.mean((x - y) ** 2))(out, target)
     mae = (lambda x, y: jnp.mean(jnp.abs(x - y)))(out, target)
-    psnr = -10 * jnp.log10(mse)
-    return {'MSE': mse, 'MAE': mae, 'PSNR': psnr}
+    # Clamp MSE to avoid log(0) = -inf, which then gives inf gradients
+    mse_clamped = jnp.maximum(mse, 1e-10)
+    psnr = -10 * jnp.log10(mse_clamped)
+    
+    # Weights
+    w_mse = args.w_mse #0.5
+    w_dists = args.w_dists #0.5
+    # print("OUT AND TARGET DIMENSIONS")
+    # print(out.shape)
+    # print(target.shape)
+    out_squeezed = jnp.squeeze(out)
+    target_squeezed = jnp.squeeze(target)
+    # print(out_squeezed.shape)
+    # print(target_squeezed.shape)
+    dists_score = dists_model.apply(dists_variables, out_squeezed, target_squeezed, batch_average=True)
+    
+    # Safeguard against NaN/inf from DISTS
+    dists_score = jnp.where(jnp.isfinite(dists_score), dists_score, 0.0)
+
+    custom_loss = w_mse * mse + w_dists * dists_score
+
+    return {'MSE': mse, 'MAE': mae, 'PSNR': psnr, 'CUSTOM': custom_loss}
 
 
 def forward(apply_fn, field_apply_fn, variables, source, target_coords, target_coords_z,
@@ -87,8 +108,8 @@ def forward(apply_fn, field_apply_fn, variables, source, target_coords, target_c
     return (out, *res[1:]) if isinstance(res, tuple) else out
 
 
-@partial(pmap, axis_name='num_devices')
-def train_step(batch, key, state: TrainState):
+@partial(pmap, axis_name='num_devices', in_axes=(0, 0, 0, None, None), static_broadcasted_argnums=(3,))
+def train_step(batch, key, state: TrainState, dists_model, dists_variables):
     def get_loss_and_metrics(params):
         params_c, batch_c = state.mp_policy.cast_to_compute((params, batch))
         out, new_model_state = forward(
@@ -98,7 +119,7 @@ def train_step(batch, key, state: TrainState):
             batch_c['scale'], key, train=True)
         out = out + batch_c['source_nearest']
         out = state.mp_policy.cast_to_output(out)
-        metrics = get_metrics(out, batch['target'])
+        metrics = get_metrics(out, batch['target'], dists_model, dists_variables)
         loss = metrics[args.loss]
         if state.mp_policy.compute_dtype == jnp.float16:
             loss = state.loss_scale.scale(loss)
@@ -132,7 +153,7 @@ def train_step(batch, key, state: TrainState):
     return metrics, new_state
 
 
-def train(train_loader, val_loader, state, args, i_start):
+def train(train_loader, val_loader, state, args, i_start, dists_model, dists_variables):
     # register SIGTERM handler
     signal.signal(signal.SIGTERM, handle_sigterm)
 
@@ -154,7 +175,7 @@ def train(train_loader, val_loader, state, args, i_start):
             # this helped to prevent timeouts with collective operations
             multihost_utils.sync_global_devices('before_step')
 
-            batch_metrics, state = train_step(batch, keys, state)
+            batch_metrics, state = train_step(batch, keys, state, dists_model, dists_variables)
 
             if not batch_metrics['grads_finite'][0]:
                 dprint(f'WARN: Grads not all finite in step {i}, repeating')
@@ -191,7 +212,7 @@ def train(train_loader, val_loader, state, args, i_start):
                 )
                 out = out + batch_c['source_nearest']
                 out = state.mp_policy.cast_to_output(out)
-                batch_metrics = get_metrics(out, batch['target'])
+                batch_metrics = get_metrics(out, batch['target'], dists_model, dists_variables)
                 # average metrics over processes
                 batch_metrics = multihost_utils.process_allgather(batch_metrics)
                 batch_metrics = jax.tree.map(lambda x: x.mean(axis=0), batch_metrics)
@@ -303,8 +324,8 @@ def make_data_loaders(args):
         Adobe240VideoFolder(Path(args.data_dir) / args.val_set, args.seq_len, shard,
                             every=args.every_frame)
     ]
-    print(f'Rank {jax.process_index()}: Read train set of length {len(data_sets[0])} and val set '
-          f'of length {len(data_sets[1])}')
+    # print(f'Rank {jax.process_index()}: Read train set of length {len(data_sets[0])} and val set '
+    #       f'of length {len(data_sets[1])}')
 
     data_sets = [ContinuousWrapper(
         ds,
@@ -335,11 +356,16 @@ def main(args):
     seed_all(args.seed, jax.process_index())
 
     data_loaders = make_data_loaders(args)
+    key = jax.random.PRNGKey(args.seed)
+
+    # Initialize dists model
+    dists_model = DISTS()
+    dists_variables = dists_model.init({"params": key}, jnp.zeros((1, 256, 256, 3)), jnp.zeros((1, 256, 256, 3)))
 
     sample_batch = prepare_batch(next(iter(data_loaders[0])))
     sample_input = [sample_batch[k] for k in ('source', 'target_coords')]
     # same key for all processes
-    hyper_model, variables, phi = build_models(jax.random.PRNGKey(args.seed), sample_input, args)
+    hyper_model, variables, phi = build_models(key, sample_input, args)
 
     # init encoder and convnextblock from checkpoint if requested for post-training
     if args.pretrained_encoder is not None:
@@ -398,7 +424,7 @@ def main(args):
         wandb.config.update(args, allow_val_change=True)
         state = state.replace(wandb_id=wandb.run.id)
 
-    train(*data_loaders, state, args, i_start)
+    train(*data_loaders, state, args, i_start, dists_model, dists_variables)
 
 
 if __name__ == '__main__':

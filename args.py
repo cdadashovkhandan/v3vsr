@@ -62,3 +62,6 @@ parser.add_argument('--geo-flip', action='store_true', help='Add flips to geo-en
 parser.add_argument('--y-only', action='store_true', help='Only evaluate Y channel of YCbCr image')
 
 parser.add_argument('--thera_dim', type=int, default=512, help='thera dimension (I have no idea)')
+
+parser.add_argument('--w_mse', type=float, default=0.5)
+parser.add_argument('--w_dists', type=float, default=0.5)

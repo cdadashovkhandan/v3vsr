@@ -1,6 +1,7 @@
 import random
 from functools import partial
 import pickle
+import shutil
 
 import jax
 import jax.numpy as jnp
@@ -11,6 +12,7 @@ from torchvision.transforms import functional as f
 from torchvision import transforms
 import numpy as np
 from PIL import Image
+import os
 
 MEAN = np.array([0.485, 0.456, 0.406])
 VAR = np.array([0.229, 0.224, 0.225]) ** 2  # std = [0.229, 0.224, 0.225]
@@ -193,14 +195,24 @@ def matlab_imresize(image, scale_factor):
 
 
 def save_checkpoint(path, state):
-    with open(path, 'wb') as fh:
-        pickle.dump({
-            'model': jax.device_get(tree_map(lambda x: x[0],
-                {'params': state.params, 'batch_stats': state.batch_stats})),
-            'optimizer': jax.device_get(tree_map(lambda x: x[0], state.opt_state)),
-            'loss_scale': jax.device_get(tree_map(lambda x: x[0], state.loss_scale)),
-            'wandb_id': state.wandb_id,
-        }, fh)
+    print("Saving checkpoint in path", path)
+    temp_path = os.path.join(os.environ['TMPDIR'], os.path.basename(path))
+    try:
+        with open(temp_path, 'wb') as fh:
+            pickle.dump({
+                'model': jax.device_get(tree_map(lambda x: x[0],
+                    {'params': state.params, 'batch_stats': state.batch_stats})),
+                'optimizer': jax.device_get(tree_map(lambda x: x[0], state.opt_state)),
+                'loss_scale': jax.device_get(tree_map(lambda x: x[0], state.loss_scale)),
+                'wandb_id': state.wandb_id,
+            }, fh)
+    except Exception as e:
+        print(f"Failed to save checkpoint due to exception: {e}")
+        return
+    
+    print("Successfully saved checkpoint, moving to", path)
+    shutil.move(temp_path, path)
+    print("Move successful")
 
 
 def dprint(s):

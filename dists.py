@@ -10,6 +10,7 @@ from torchvision import transforms
 import scipy
 import utils
 import h5py
+import numpy as np
 
 class L2Pooling(nn.Module):
     channels: int
@@ -34,7 +35,6 @@ class L2Pooling(nn.Module):
             feature_group_count=self.channels,
         )
         return jnp.sqrt(x + 1e-12)
-
 
 
 class DISTS(nn.Module):
@@ -94,22 +94,6 @@ class DISTS(nn.Module):
 
     @nn.compact
     def __call__(self, x, y, require_grad=False, batch_average=False):
-        def normal_init(key, shape, mean=0.1, std=0.01):
-            return jax.random.normal(key, shape) * std + mean
-
-        # # Create alpha/beta variables
-        # alpha = self.variable('params', 'alpha', normal_init, 
-        #                      jax.random.PRNGKey(0), (1, 1, 1, sum(self.chns)))
-        # beta = self.variable('params', 'beta', normal_init, 
-        #                     jax.random.PRNGKey(1), (1, 1, 1, sum(self.chns)))
-
-        # # Load weights
-        # weights = scipy.io.loadmat('dists/weights/alpha_beta.mat')
-        # alpha.value = jnp.array(weights['alpha']).reshape((1, 1, 1, -1))
-        # beta.value = jnp.array(weights['beta']).reshape((1, 1, 1, -1))
-        # print("Loaded alpha sum:", weights['alpha'].sum())
-        # print("Loaded beta sum:", weights['beta'].sum())
-
         feats0 = self.get_features(x)
         feats1 = self.get_features(y)
 
@@ -118,17 +102,11 @@ class DISTS(nn.Module):
         c1 = 1e-6
         c2 = 1e-6
 
-        print("ALPHA BETA SUMS", self.alpha.value.sum(), self.beta.value.sum())
         w_sum = self.alpha.value.sum() + self.beta.value.sum()
-        print("W-SUM", w_sum)
-        print("SELF ALPHA AND BETA SHAPE:", self.alpha.value.shape, self.beta.value.shape)
 
-        splits = jnp.cumsum(jnp.array(self.chns))[:-1]
+        splits = tuple(np.cumsum(np.array(self.chns))[:-1])
         alpha_split = jnp.split(self.alpha.value / w_sum, splits, axis=3)
         beta_split = jnp.split(self.beta.value / w_sum, splits, axis=3)
-
-        print("ALPHA", len(alpha_split))
-        print("BETA", len(beta_split))
 
         for k in range(len(self.chns)):
             x_mean = feats0[k].mean((1, 2), keepdims=True)
@@ -148,9 +126,6 @@ class DISTS(nn.Module):
         else:
             return score
 
-
-
-
 def prepare_image(image, resize=True):
     if resize and min(image.size)>256:
         image = transforms.functional.resize(image,256)
@@ -158,13 +133,8 @@ def prepare_image(image, resize=True):
 
     image_jax = jnp.array(image)
     image_jax = jnp.transpose(image_jax, (1, 2, 0))
-    # image_jax = jnp.transpose(image_jax, (1, 2, 0))
 
-    # Add batch dimension
     return jnp.expand_dims(image_jax, 0)
-
-    # return image.unsqueeze(0)
-
 
 # def prepare_image(image, resize=True):
 #     from jax import image as jax_image
@@ -201,7 +171,6 @@ if __name__ == '__main__':
     ref = prepare_image(Image.open(args.ref).convert("RGB"))
     dist = prepare_image(Image.open(args.dist).convert("RGB"))
     assert ref.shape == dist.shape
-    print("IMG SHAPE:", ref.shape)
 
     available_backends = [str(d.platform) for d in jax.devices()]
     if 'gpu' in available_backends:
