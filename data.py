@@ -12,6 +12,7 @@ import torch.nn.functional as f
 from torchvision.transforms import RandomCrop
 from torchvision.datasets.folder import IMG_EXTENSIONS
 from PIL import Image
+import albumentations as A
 
 from utils import make_grid, pil_resize
 
@@ -141,6 +142,59 @@ def read_video(path) -> list[torch.Tensor]:
     capture.release()
     return frames
 
+def augment_video(frames: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+
+    augmentations = {
+        "horizontal_flip": A.ReplayCompose([
+            A.HorizontalFlip(p=1.0),
+        ]),
+
+        "brightness_contrast": A.ReplayCompose([
+            A.RandomBrightnessContrast(
+                brightness_limit=0.2,
+                contrast_limit=0.2,
+                p=1.0,
+            ),
+        ]),
+
+        "rotate": A.ReplayCompose([
+            A.ColorJitter(p=1.0),
+        ]),
+    }
+
+    frames_np = np.stack([frame.permute(1, 2, 0).numpy() for frame in frames], axis=0)
+
+    videos = {
+        "original": [frame.copy() for frame in frames_np]
+    }
+
+    for name, transform in augmentations.items():
+        augmented_frames = []
+
+        # Sample random parameters on the first frame.
+        first_result = transform(image=frames_np[0])
+        augmented_frames.append(first_result["image"])
+
+        # Replay the exact same sampled parameters on the other frames.
+        replay = first_result["replay"]
+
+        for frame in frames_np[1:]:
+            result = A.ReplayCompose.replay(
+                replay,
+                image=frame
+            )
+            augmented_frames.append(result["image"])
+
+        videos[name] = augmented_frames
+
+    # Convert output back to the same format as input
+    output_videos = []
+    for _, video in videos.items():
+        video_torch = [torch.from_numpy(x).permute(2, 0, 1) for x in video]
+        output_videos.append(video_torch)
+
+    return output_videos
+
 
 class Adobe240VideoFolder(REDSVideoFolder):
 
@@ -156,12 +210,16 @@ class Adobe240VideoFolder(REDSVideoFolder):
         video_paths = video_paths[shard.rank::shard.world_size]
 
         self.items = []
+
+        print(f"Detected {len(video_paths)} video paths")
+
         for p in video_paths:
             # print(f"Reading video {p}")
             frames = read_video(p)
-            # print("Frame count: ", frames)
-            self.items.append(frames)
-
+            # print("PRINTING SHAPES")
+            
+            augmented_videos = augment_video(frames)
+            self.items = self.items + augmented_videos
         print(f'Read Adobe dataset with {len(self)} videos.')
 
 
