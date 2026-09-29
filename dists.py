@@ -2,14 +2,9 @@
 
 import jax
 import jax.numpy as jnp
-import os, sys
 import flax.linen as nn
-from flax import nnx
-import flaxmodels as fm
 from torchvision import transforms
 import scipy
-import utils
-import h5py
 import numpy as np
 
 class L2Pooling(nn.Module):
@@ -50,8 +45,8 @@ class DISTS(nn.Module):
         weights = scipy.io.loadmat('dists/weights/alpha_beta.mat')
     
         # Create and initialize variables with reshaped weights
-        alpha_data = jnp.array(weights['alpha']).reshape((1, 1, 1, -1))
-        beta_data = jnp.array(weights['beta']).reshape((1, 1, 1, -1))
+        alpha_data = jnp.array(weights['alpha'], dtype=self.dtype).reshape((1, 1, 1, -1))
+        beta_data = jnp.array(weights['beta'], dtype=self.dtype).reshape((1, 1, 1, -1))
         
         self.alpha = self.variable('params', 'alpha', lambda: alpha_data)
         self.beta = self.variable('params', 'beta', lambda: beta_data)
@@ -59,8 +54,8 @@ class DISTS(nn.Module):
     def _conv_block(self, x, features, num_layers, block_num, dtype='float32'):
         for l in range(num_layers):
             layer_name = f'conv{block_num}_{l + 1}'
-            w = lambda *_ : jnp.array(self.param_dict[layer_name + "_weight"])
-            b = lambda *_ : jnp.array(self.param_dict[layer_name + "_bias"])
+            w = lambda *_ : jnp.array(self.param_dict[layer_name + "_weight"], dtype=self.dtype)
+            b = lambda *_ : jnp.array(self.param_dict[layer_name + "_bias"], dtype=self.dtype)
             x = nn.Conv(features=features, kernel_size=(3, 3), kernel_init=w, bias_init=b, 
                        padding='same', name=layer_name, dtype=dtype)(x)
             x = nn.relu(x)
@@ -132,32 +127,10 @@ def prepare_image(image, resize=True):
     image = transforms.ToTensor()(image)
 
     image_jax = jnp.array(image)
+    # CHW to HWC
     image_jax = jnp.transpose(image_jax, (1, 2, 0))
 
     return jnp.expand_dims(image_jax, 0)
-
-# def prepare_image(image, resize=True):
-#     from jax import image as jax_image
-    
-#     # Convert PIL Image to numpy array
-#     image_array = jnp.array(image, dtype=jnp.float32) / 255.0
-    
-#     # Resize if needed
-#     if resize and min(image.size) > 256:
-#         # image.size is (width, height) in PIL
-#         height, width = image_array.shape[:2]
-#         scale = 256 / min(width, height)
-#         new_height = int(height * scale)
-#         new_width = int(width * scale)
-#         image_array = jax_image.resize(image_array, (new_height, new_width, 3))
-    
-#     # Convert to JAX array and normalize to [0, 1]
-#     image_jax = jnp.array(image_array)
-
-#     image_jax = jnp.transpose(image_jax, (2, 0, 1))
-    
-#     # Add batch dimension
-#     return jnp.expand_dims(image_jax, 0)
 
 if __name__ == '__main__':
 

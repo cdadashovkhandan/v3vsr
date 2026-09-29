@@ -7,7 +7,8 @@ from PIL import Image
 import numpy as np
 from natsort import natsorted
 import cv2
-
+import lpips
+import torch
 
 def read_y(p):
     im = np.asarray(Image.open(p).convert("RGB"), dtype=np.float32) / 255.0
@@ -70,6 +71,23 @@ def tof_y(gt0, gt1, pred0, pred1):
 
     return tOF
 
+def lpips_y(p1: Path, p2: Path, model, device) -> float:
+
+    if device is None:
+        device = next(model.parameters()).device
+
+    img1 = np.asarray(Image.open(p1).convert("RGB"), dtype=np.float32) / 255.0
+    img2 = np.asarray(Image.open(p2).convert("RGB"), dtype=np.float32) / 255.0
+
+    if img1.shape != img2.shape:
+        raise ValueError(f"Shape mismatch: {img1.shape} vs {img2.shape}")
+
+    img1_t = torch.from_numpy(np.transpose(img1, (2, 0, 1))[None, ...]).to(device)
+    img2_t = torch.from_numpy(np.transpose(img2, (2, 0, 1))[None, ...]).to(device)
+
+    with torch.no_grad():
+        score = model(img1_t, img2_t)
+    return float(score.item())
 
 def main():
     ap = argparse.ArgumentParser()
@@ -82,6 +100,11 @@ def main():
     out_videos = natsorted([p for p in args.out.iterdir() if p.is_dir() and not p.name.startswith(".")])
     psnrs, psnrs_center = [], []
     ssims, ssims_center = [], []
+    lpipss, lpipss_center = [], []
+
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    lpips_model = lpips.LPIPS(net="alex").to(device).eval()
     tofs = []
 
     ts = args.time_scale
@@ -110,6 +133,12 @@ def main():
             ssims_center.append(stats.mean([
                 ssim_y(gt_frames[j], out_frames[j]) for j in (i_frame, i_frame + (ts // 2))
             ]))
+            lpipss.append(stats.mean([
+                lpips_y(gt_frames[j], out_frames[j], lpips_model, device) for j in range(i_frame, i_frame + ts)
+            ]))
+            lpipss_center.append(stats.mean([
+                lpips_y(gt_frames[j], out_frames[j], lpips_model, device) for j in (i_frame, i_frame + (ts // 2))
+            ]))
 
         for i_frame in range(0, len(gt_frames) - 1):
             tofs.append(tof_y(gt_frames[i_frame], gt_frames[i_frame + 1],
@@ -117,10 +146,15 @@ def main():
 
         print(f"PSNR: {sum(psnrs) / len(psnrs):.3f} dB ({len(psnrs)} frames, average)")
         print(f"PSNR: {sum(psnrs_center) / len(psnrs_center):.3f} dB ({len(psnrs)} frames, center)")
+        print(f"SSIM: stddev {stats.stdev(psnrs)}")
 
         print(f"SSIM: {sum(ssims) / len(ssims):.3f} ({len(ssims)} frames, average)")
         print(f"SSIM: {sum(ssims_center) / len(ssims_center):.3f} ({len(ssims_center)} frames, center)")
-
+        print(f"SSIM: stddev {stats.stdev(ssims)}")
+        
+        print(f"LPIPS: {sum(lpipss) / len(lpipss):.3f} ({len(lpipss)} frames, average)")
+        print(f"LPIPS: {sum(lpipss_center) / len(lpipss_center):.3f} ({len(lpipss_center)} frames, center)")
+        print(f"LPIPS stddev {stats.stdev(lpipss)}")
         print(f"tOF: {sum(tofs) / len(tofs):.3f}")
 
 
