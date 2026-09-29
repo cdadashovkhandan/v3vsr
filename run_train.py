@@ -44,34 +44,32 @@ def prepare_batch(batch):
     return batch
 
 
-# @jit
+@partial(jit, static_argnames=['dists_model'])
 def get_metrics(out, target, dists_model, dists_variables):
     """
     Returns: dict of metrics
     """
     mse = (lambda x, y: jnp.mean((x - y) ** 2))(out, target)
     mae = (lambda x, y: jnp.mean(jnp.abs(x - y)))(out, target)
+
     # Clamp MSE to avoid log(0) = -inf, which then gives inf gradients
     mse_clamped = jnp.maximum(mse, 1e-10)
     psnr = -10 * jnp.log10(mse_clamped)
     
     # Weights
-    w_mse = args.w_mse #0.5
-    w_dists = args.w_dists #0.5
-    # print("OUT AND TARGET DIMENSIONS")
-    # print(out.shape)
-    # print(target.shape)
-    out_squeezed = jnp.squeeze(out)
-    target_squeezed = jnp.squeeze(target)
-    # print(out_squeezed.shape)
-    # print(target_squeezed.shape)
-    dists_score = dists_model.apply(dists_variables, out_squeezed, target_squeezed, batch_average=True)
+    w_mse = args.w_mse
+    w_dists = args.w_dists
+
+    dists_out = jnp.squeeze(out)
+    dists_target = jnp.squeeze(target)
     
-    # Safeguard against NaN/inf from DISTS
-    dists_score = jnp.where(jnp.isfinite(dists_score), dists_score, 0.0)
+    dists_score = dists_model.apply(dists_variables, dists_out, dists_target, batch_average=True)
+    
+    dists_score = jnp.asarray(dists_score, dtype=jnp.float32)
+    dists_score = jnp.nan_to_num(dists_score, nan=0.0, posinf=1.0, neginf=0.0)
+    dists_score = jnp.clip(dists_score, 0.0, 1.0)
 
     custom_loss = w_mse * mse + w_dists * dists_score
-
     return {'MSE': mse, 'MAE': mae, 'PSNR': psnr, 'CUSTOM': custom_loss}
 
 
@@ -108,6 +106,38 @@ def forward(apply_fn, field_apply_fn, variables, source, target_coords, target_c
     return (out, *res[1:]) if isinstance(res, tuple) else out
 
 
+def find_nonfinite_gradients(grads):
+    leaves, _ = jax.tree_util.tree_flatten(grads)
+
+    for i, g in enumerate(leaves):
+        finite = jnp.all(jnp.isfinite(g))
+
+        def report_nonfinite(_):
+            jax.debug.print(
+                "NONFINITE GRAD LEAF {}, shape={}, dtype={}",
+                i,
+                g.shape,
+                g.dtype,
+            )
+            jax.debug.print(
+                "min={}, max={}, has_nan={}, has_inf={}",
+                jnp.nanmin(g),
+                jnp.nanmax(g),
+                jnp.any(jnp.isnan(g)),
+                jnp.any(jnp.isinf(g)),
+            )
+            return 0
+
+        def report_finite(_):
+            return 0
+
+        jax.lax.cond(
+            finite,
+            report_finite,
+            report_nonfinite,
+            operand=None,
+        )
+
 @partial(pmap, axis_name='num_devices', in_axes=(0, 0, 0, None, None), static_broadcasted_argnums=(3,))
 def train_step(batch, key, state: TrainState, dists_model, dists_variables):
     def get_loss_and_metrics(params):
@@ -133,12 +163,29 @@ def train_step(batch, key, state: TrainState, dists_model, dists_variables):
 
     # combine gradients and metrics from all devices
     grads = jax.lax.pmean(grads, axis_name='num_devices')
+    bad_idx = find_nonfinite_gradients(grads)
+
+    # compute squared norm across all devices and all params, then clip globally
+    def _global_norm(tree):
+        sq = sum([jnp.sum(jnp.square(x).astype(jnp.float32)) for x in jax.tree.leaves(tree)])
+        # sum squared norms across replicas to get true global norm
+        sq = jax.lax.psum(sq, axis_name='num_devices')
+        return jnp.sqrt(sq)
+
+    g_norm = _global_norm(grads)
+    clip_coef = jnp.minimum(1.0, args.max_grad_norm / (g_norm + 1e-6))
+    grads = tree_map(lambda t: t * clip_coef.astype(t.dtype), grads)
+
+    # record the (global) grad norm for logging/monitoring
+    # metrics['grad_norm'] = g_norm
+    
     metrics = jax.lax.pmean(metrics, axis_name='num_devices')
     # compute optimizer update in the same precision as params
     # grads = policy.cast_to_param(grads)
     assert jax.tree.leaves(grads)[0].dtype == jnp.float32
 
     grads_finite = jmp.all_finite(grads)
+    metrics['grad_norm'] = g_norm
     metrics['grads_finite'] = grads_finite
 
     # parameter updates happen on each device individually
@@ -162,9 +209,10 @@ def train(train_loader, val_loader, state, args, i_start, dists_model, dists_var
 
     train_iter = inf_iter(train_loader)
     train_metrics = defaultdict(list)
-
+    max_retries = 5
     for i in (pbar := tqdm(range(i_start, args.n_iter), total=args.n_iter, initial=i_start,
                            disable=jax.process_index() != 0)):
+        retry_count = 0
         inner_steps_done = 0
         while inner_steps_done < args.accu_steps:
             batch = prepare_batch(next(train_iter))
@@ -178,12 +226,23 @@ def train(train_loader, val_loader, state, args, i_start, dists_model, dists_var
             batch_metrics, state = train_step(batch, keys, state, dists_model, dists_variables)
 
             if not batch_metrics['grads_finite'][0]:
-                dprint(f'WARN: Grads not all finite in step {i}, repeating')
+                dprint(f"WARNING: NON-FINITE GRADIENTS IN STEP {i}")
+                dprint(f'  CUSTOM: {batch_metrics.get("CUSTOM", "N/A")}')
+                dprint(f'  MSE: {batch_metrics.get("MSE", "N/A")}')
+                dprint(f'  MAE: {batch_metrics.get("MAE", "N/A")}')
+                dprint(f'  PSNR: {batch_metrics.get("PSNR", "N/A")}')
+                if retry_count >= max_retries:
+                    dprint(f'WARN: Max retries exceeded, exiting program')
+                    exit(1)
+                else:
+                    dprint(f'WARN: Repeating Step {i}')
+                    retry_count += 1
                 continue
 
             for k, v in batch_metrics.items():
                 train_metrics[k].append(v[0].item())
             inner_steps_done += 1
+            retry_count = 0
 
         if received_sigterm:
             dprint('Saving checkpoint and exiting training loop.')
