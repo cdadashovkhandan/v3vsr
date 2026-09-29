@@ -17,19 +17,19 @@ python -u run_train.py \
     --embed-dims 90 90 90 \
     --attention-heads 12 \
     --deformable-groups 12 \
-    --freeze-flow-first 80_000 \
+    --freeze-flow-first 900_000 \
     --flow-grad-multiplier 0.1 \
     --max-grad-norm 1.0 \
-    --n-iter 100_000 \
+    --n-iter 1_000_000 \
     --num-workers 4 \
     --patch-size 50 \
     --seq-len 8 \
     --local-batch-size 1 \
-    --tag wgt \
+    --tag mseonly \
     --thera_dim 512 \
     --loss CUSTOM \
-    --w_mse 0.5 \
-    --w_dists 0.5 \
+    --w_mse 1 \
+    --w_dists 0 \
     
 # # Post-training phase with lower temporal freq. initialization;
 # # omitted default arguments for brevity

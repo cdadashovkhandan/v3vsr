@@ -4,10 +4,10 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=60GB
-#SBATCH --time=10:00:00
+#SBATCH --time=16:00:00
 #SBATCH --gpus-per-node=a100:2
-#SBATCH --output=runs/train_d7m3-%j.log
-#SBATCH --job-name=d7m3
+#SBATCH --output=runs/train_wgt-%j.log
+#SBATCH --job-name=wgt
 
 # start environments and load existing modules
 module purge
@@ -22,7 +22,8 @@ export JAX_PROCESS_ID=0
 export JAX_NUM_PROCESSES=2  # or your actual process count
 export XLA_FLAGS=--xla_gpu_strict_conv_algorithm_picker=false
 export WANDB_API_KEY="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"
-
+# export JAX_DEBUG_NANS=True
+# export JAX_TRACEBACK_FILTERING=off
 # run 
 # python inference_tile.py -i /scratch/s3591077/mthesis/datasets/volume_static_short -o volume_static_short.mp4 --outputimage_path ./pngdump
 
